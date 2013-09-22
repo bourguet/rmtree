@@ -1,6 +1,6 @@
 # Makefile
 #
-# Copyright (c) 2004, 2013  Jean-Marc Bourguet
+# Copyright (c) 2013  Jean-Marc Bourguet
 # 
 # All rights reserved.
 # 
@@ -32,47 +32,28 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-all::
-
-SUBDIRS=src doc
-project:=$(notdir $(shell pwd))
-prefix:=/opt/bourguet/$(project)
-bindir:=$(prefix)/bin
-mandir:=$(prefix)/man
-man1dir:=$(mandir)/man1
+all:
 
 PROGS:=rmtree
-MAN1PAGES:=rmtree.1
 
 .PHONY: all clean realclean distclean
 
-clean realclean distclean::
-	@for dir in $(SUBDIRS); do \
-	   $(MAKE) -C $$dir $@; \
-	done
+all: ps pdf
 
-all::
-	@$(MAKE) -C src all
-
-clean::
+clean:
 	@-rm *~
 
-realclean:: clean
+realclean:
+	@-rm $(PROGS:=.ps) $(PROGS:=.pdf)
 
-distclean:: clean
+distclean: realclean
 
-dist:
-	$(MAKE) realclean
-	$(MAKE) all
-	$(MAKE) distclean
-	cd .. ; tar cjfX $(project)-$(VERSION).tar.bz $(project)/excluded $(project)
+ps: $(PROGS:=.ps)
 
-install: all $(DESTDIR)$(bindir) $(DESTDIR)$(man1dir)
-	cd src; cp $(PROGS) $(DESTDIR)$(bindir)
-	cd doc; cp $(MANPAGES) $(DESTDIR)$(man1dir)
+pdf: $(PROGS:=.pdf)
 
-$(DESTDIR)$(bindir):
-	@mkdir -p $@
+%.ps: %.1
+	groff -T ps -man $^ > $@
 
-$(DESTDIR)$(man1dir):
-	@mkdir -p $@
+%.pdf: %.ps
+	ps2pdf $^ $@

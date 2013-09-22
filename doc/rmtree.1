@@ -1,0 +1,72 @@
+.TH RMTREE 1 "September 21, 2013" "Jean-Marc Bourguet" "Jean-Marc Bourguet's Utilities"
+
+.SH NAME
+rmtree \- remove directories and their content
+
+.SH SYNOPSIS
+.B rmtree
+[\fIOPTION\fR]... \fIDIR\fR...
+
+.SH DESCRIPTION
+.B rmtree
+removes each specified directory and their content.  There are two main
+differences with
+.B rm -fr
+:
+.IP \(bu
+.B rmtree
+is able to add  access right on a directory to do its job; 
+.IP \(bu
+by default
+.B rmtree 
+won't remove the content of a directory on which write access have been
+removed.
+
+.SH OPTIONS
+
+.TP
+\fB\-c\fR
+remove only the content of the specified directories.
+
+.TP
+\fB\-F\fR
+remove write protected files and directories.
+
+.TP
+\fB\-M\fR
+remove in different file systems.
+
+.SH EXIT STATUS
+
+.TP
+0
+all requested files and directories have been removed
+.TP
+1
+some files and directories but not all have been removed
+.TP
+2
+nothing has been removed
+
+.\" .SH NOTES
+
+.\" .SH BUGS
+
+.SH EXAMPLES
+
+.B rmtree foo
+.P
+Remove the directory foo and its content.
+
+.B rmtree -F foo
+.P
+Remove the directory foo and its content, even the write protected part,
+even if it has to change access rights to achieve its result.
+
+.B rmtree -c .
+.P
+Remove the content of the current directory, even the hidden files.
+
+.SH SEE ALSO
+
+rm(1), rmdir(1)
