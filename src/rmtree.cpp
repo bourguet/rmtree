@@ -9,6 +9,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <dirent.h>
+
+bool force = false;
+bool contentOnly = false;
+bool dryRun = false;
+bool verbose = false;
 
 // ----------------------------------------------------------------------------
 /// Display simple usage information
@@ -27,7 +34,9 @@ void help()
         "\n"
         "Options:\n"
         "-f\tforce (change permissions on removed entries, remove read only entries)\n"
-        "-c\tremove only the content, keep the directory\n";
+        "-c\tremove only the content, keep the directory\n"
+        "-v\tverbose\n"
+        "-n\tdon't remove anything, say what'd be done\n";
 } // help
 
 // ----------------------------------------------------------------------------
@@ -97,6 +106,107 @@ bool isValidForRemoval(std::string const& path, bool contentOnly)
     return true;
 } // isValidForRemoval
 
+int myUnlink(std::string const& path)
+{
+    if (dryRun || verbose) {
+        std::cout << "Removing " << path << '\n';
+    }
+    if (!dryRun) {
+        return unlink(path.c_str());
+    }
+    return 0;
+}
+
+int myRmdir(std::string const& path)
+{
+    if (dryRun || verbose) {
+        std::cout << "Removing " << path << '\n';
+    }
+    if (!dryRun) {
+        return rmdir(path.c_str());
+    }
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+bool removeEntry(std::string const& path, bool contentOnly)
+{
+    struct stat buf;
+    if (lstat(path.c_str(), &buf) != 0) {
+        perror(path.c_str());
+        return false;
+    }
+    if (!S_ISDIR(buf.st_mode)) {
+        if (force || S_ISLNK(buf.st_mode) || access(path.c_str(), W_OK) == 0) {
+            if (myUnlink(path.c_str()) != 0) {
+                int error = errno;
+                std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            if (!force) {
+                perror(path.c_str());
+            }
+            return false;
+        }
+    } else {
+        if (access(path.c_str(), W_OK|X_OK|R_OK) != 0) {
+            if (!force) {
+                int error = errno;
+                std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
+                return false;
+            } else {
+                if (verbose | dryRun) {
+                    std::cerr << "Changing rights on " << path.c_str() << '\n';
+                }
+                if (dryRun) {
+                    if (access(path.c_str(), X_OK|R_OK) != 0) {
+                        int error = errno;
+                        std::cerr << "Lack of access rights (" << strerror(error) << ") prevent listing actions which would be done on "
+                                  << path.c_str() << '\n';
+                    }
+                    return false;
+                } else {
+                    if (chmod(path.c_str(), S_IRUSR|S_IWUSR|S_IXUSR|buf.st_mode) != 0) {
+                        int error = errno;
+                        std::cerr << "Can't change rights on " << path << ":" << strerror(error) << '\n';
+                        return false;
+                    }
+                }
+            }            
+        }
+        DIR* dp = opendir(path.c_str());
+        if (dp == NULL) {
+            int error = errno;
+            std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
+            return false;
+        } else {
+            bool status = true;
+            while (struct dirent* ep = readdir(dp)) {
+                if (strcmp(ep->d_name, ".") != 0
+                    && strcmp(ep->d_name, "..") != 0)
+                {
+                    status &= removeEntry(path+"/" +ep->d_name, false);
+                }
+            }
+            closedir(dp);
+            if (!contentOnly) {
+                if (myRmdir(path.c_str()) != 0) {
+                    int error = errno;
+                    std::cerr << "Can't remove dir " << path << ": " << strerror(error) << '\n';
+                    return false;
+                } else {
+                    return status;
+                }
+            } else {
+                return status;
+            }
+        }
+    }
+} // removeEntry
+
 // ----------------------------------------------------------------------------
 /// The main
 int main(int argc, char* argv[])
@@ -105,12 +215,10 @@ int main(int argc, char* argv[])
 
     try {
         int c, errcnt = 0;
-        bool force = false;
-        bool contentOnly = false;
         
         std::locale::global(std::locale(""));
         
-        while (c = getopt(argc, argv, "fch"), c != -1) {
+        while (c = getopt(argc, argv, "fchvn"), c != -1) {
             switch (c) {
             case 'h':
                 help();
@@ -120,6 +228,12 @@ int main(int argc, char* argv[])
                 break;
             case 'c':
                 contentOnly=true;
+                break;
+            case 'v':
+                verbose=true;
+                break;
+            case 'n':
+                dryRun=true;
                 break;
             case '?':
                 ++errcnt;
@@ -140,16 +254,27 @@ int main(int argc, char* argv[])
         }
 
         if (errcnt > 0)
-            throw EXIT_FAILURE;
+            throw 2;
 
+        int notRemoved = 0;
+        
+        for (int i = optind; i < argc; ++i) {
+            if (!removeEntry(argv[i], contentOnly))
+                ++notRemoved;
+        }
+
+        if (notRemoved > 0)
+            status = 1;
+        else
+            status = 0;
     } catch (std::exception& e) {
         std::cerr << "Error: " << e.what() << '\n';
-        status = EXIT_FAILURE;
+        status = 3;
     } catch (int s) {
         status = s;
     } catch (...) {
         std::cerr << "Unexpected exception.\n";
-        status = EXIT_FAILURE;
+        status = 3;
     }
 
     return status;
