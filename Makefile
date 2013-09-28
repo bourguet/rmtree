@@ -32,7 +32,7 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-all::
+all:
 
 SUBDIRS=src doc
 project:=$(notdir $(shell pwd))
@@ -44,22 +44,33 @@ man1dir:=$(mandir)/man1
 PROGS:=rmtree
 MAN1PAGES:=rmtree.1
 
-.PHONY: all clean realclean distclean
+.PHONY: all doc install 
+.PHONY: clean realclean distclean
+.PHONY: clean.top realclean.top distclean.top
 
 clean realclean distclean::
 	@for dir in $(SUBDIRS); do \
 	   $(MAKE) -C $$dir $@; \
 	done
 
-all::
+all:
 	@$(MAKE) -C src all
 
-clean::
+doc:
+	@$(MAKE) -C doc all
+
+clean:: clean.top
+
+distclean:: distclean.top
+
+realclean:: realclean.top
+
+clean.top:
 	@-rm *~
 
-realclean:: clean
+distclean.top: clean.top
 
-distclean:: clean
+realclean.top: distclean.top
 
 dist:
 	$(MAKE) realclean

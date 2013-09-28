@@ -34,19 +34,13 @@
 
 all:
 
+.PHONY: all ps pdf
+.PHONY: clean realclean distclean
+.PHONY: clean.top realclean.top distclean.top
+
 PROGS:=rmtree
 
-.PHONY: all clean realclean distclean
-
 all: ps pdf
-
-clean:
-	@-rm *~
-
-realclean:
-	@-rm $(PROGS:=.ps) $(PROGS:=.pdf)
-
-distclean: realclean
 
 ps: $(PROGS:=.ps)
 
@@ -57,3 +51,18 @@ pdf: $(PROGS:=.pdf)
 
 %.pdf: %.ps
 	ps2pdf $^ $@
+
+clean:: clean.top
+
+distclean:: distclean.top
+
+realclean:: realclean.top
+
+clean.top:
+	@-rm *~
+
+distclean.top: clean.top
+	@-rm $(PROGS:=.ps) $(PROGS:=.pdf)
+
+realclean.top: distclean.top
+

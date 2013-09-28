@@ -32,11 +32,10 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-all:: rmtree
+all:
 
-.PHONY: clean distclean realclean test
-
-SUBDIRS=test
+.PHONY: all debug
+.PHONY: clean distclean realclean
 
 PROGS=$(PROG1)
 
@@ -55,24 +54,24 @@ endif
 $(PROG1): $(OBJ1)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(PROG1) $(OBJ1) $(LOADLIBES) $(LDLIBS)
 
+all: rmtree
+
 debug: CXXFLAGS=$(CXXDBGFLAGS)
 debug: all
 
-test:
-	@$(MAKE) -C test test
+clean:: clean.top
 
-clean realclean distclean::
-	@for dir in $(SUBDIRS) ; do \
-	   $(MAKE) -C $$dir $@ || true ; \
-	done;
+distclean:: distclean.top
 
-clean::
-	@-rm *.o *~
+realclean:: realclean.top
 
-distclean:: clean
+clean.top:
+	@-rm *~ *.o
+
+distclean.top: clean.top
 	@-rm $(PROGS)
 	@-rm *.d
 
-realclean:: distclean
+realclean.top: distclean.top
 
 -include $(OBJ1:.o=.d) $(OBJ2:.o=.d)
