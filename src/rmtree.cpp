@@ -12,8 +12,12 @@
 #include <stdio.h>
 #include <dirent.h>
 
+
+// ----------------------------------------------------------------------------
+// Global variables
 bool force = false;
 bool contentOnly = false;
+bool keepTree = false;
 bool dryRun = false;
 bool verbose = false;
 bool traverseMountPoints = false;
@@ -21,10 +25,36 @@ bool checkOwner = true;
 bool forceRecurse = false;
 
 // ----------------------------------------------------------------------------
+/// unlink(2) wrapper taking dryRun and verbose into account 
+int doUnlink(std::string const& path)
+{
+    if (dryRun || verbose) {
+        std::cout << "Removing " << path << '\n';
+    }
+    if (!dryRun) {
+        return unlink(path.c_str());
+    }
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+/// rmdir(2) wrapper taking dryRun and verbose into account
+int doRmdir(std::string const& path)
+{
+    if (dryRun || verbose) {
+        std::cout << "Removing " << path << '\n';
+    }
+    if (!dryRun) {
+        return rmdir(path.c_str());
+    }
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
 /// Display simple usage information
 void usage()
 {
-    std::cout << "Usage: rmtree [-fc] dirs...\n";
+    std::cout << "Usage: rmtree [-hvnctFROM] paths...\n";
 } // usage
 
 // ----------------------------------------------------------------------------
@@ -36,9 +66,11 @@ void help()
         "Remove directories and their content\n"
         "\n"
         "Options:\n"
+        "-h\tthis help\n"
         "-v\tverbose, say what is done\n"
         "-n\tdon't do anything, just say what will be done\n"
-        "-c\tremove only the content, keep the directory\n"
+        "-c\tremove only the content, keep the top directories\n"
+        "-t\tremove only the content, keep the directory tree\n"
         "-F\tforce (change permissions on removed entries, remove read only entries)\n"
         "-O\tdon't check ownership\n"
         "-R\trecurse in directories which one know beforehand won't be removed\n"
@@ -113,31 +145,11 @@ bool isValidForRemoval(std::string const& path, bool contentOnly)
     return true;
 } // isValidForRemoval
 
-int myUnlink(std::string const& path)
-{
-    if (dryRun || verbose) {
-        std::cout << "Removing " << path << '\n';
-    }
-    if (!dryRun) {
-        return unlink(path.c_str());
-    }
-    return 0;
-}
-
-int myRmdir(std::string const& path)
-{
-    if (dryRun || verbose) {
-        std::cout << "Removing " << path << '\n';
-    }
-    if (!dryRun) {
-        return rmdir(path.c_str());
-    }
-    return 0;
-}
-
 // ----------------------------------------------------------------------------
+/// remove a directory entry.
 bool removeEntry(std::string const& path, bool contentOnly)
 {
+    bool result = true;
     struct stat buf;
     if (lstat(path.c_str(), &buf) != 0) {
         perror(path.c_str());
@@ -145,7 +157,7 @@ bool removeEntry(std::string const& path, bool contentOnly)
     }
     if (!S_ISDIR(buf.st_mode)) {
         if (force || S_ISLNK(buf.st_mode) || access(path.c_str(), W_OK) == 0) {
-            if (myUnlink(path.c_str()) != 0) {
+            if (doUnlink(path.c_str()) != 0) {
                 int error = errno;
                 std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
                 return false;
@@ -171,7 +183,7 @@ bool removeEntry(std::string const& path, bool contentOnly)
                 if (dryRun) {
                     if (access(path.c_str(), X_OK|R_OK) != 0) {
                         int error = errno;
-                        std::cerr << "Lack of access rights (" << strerror(error) << ") prevent listing actions which would be done on "
+                        std::cerr << "Lack of access rights prevent listing actions which would be done on "
                                   << path.c_str() << '\n';
                     }
                     return false;
@@ -179,10 +191,13 @@ bool removeEntry(std::string const& path, bool contentOnly)
                     if (chmod(path.c_str(), S_IRUSR|S_IWUSR|S_IXUSR|buf.st_mode) != 0) {
                         int error = errno;
                         std::cerr << "Can't change rights on " << path << ":" << strerror(error) << '\n';
-                        return false;
+                        if (forceRecurse)
+                            result = false;
+                        else
+                            return false;
                     }
                 }
-            }            
+            }
         }
         DIR* dp = opendir(path.c_str());
         if (dp == NULL) {
@@ -190,25 +205,24 @@ bool removeEntry(std::string const& path, bool contentOnly)
             std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
             return false;
         } else {
-            bool status = true;
             while (struct dirent* ep = readdir(dp)) {
                 if (strcmp(ep->d_name, ".") != 0
                     && strcmp(ep->d_name, "..") != 0)
                 {
-                    status &= removeEntry(path+"/" +ep->d_name, false);
+                    result &= removeEntry(path+"/" +ep->d_name, keepTree);
                 }
             }
             closedir(dp);
             if (!contentOnly) {
-                if (myRmdir(path.c_str()) != 0) {
+                if (doRmdir(path.c_str()) != 0) {
                     int error = errno;
                     std::cerr << "Can't remove dir " << path << ": " << strerror(error) << '\n';
                     return false;
                 } else {
-                    return status;
+                    return result;
                 }
             } else {
-                return status;
+                return result;
             }
         }
     }
@@ -225,19 +239,22 @@ int main(int argc, char* argv[])
 
         std::locale::global(std::locale(""));
         
-        while (c = getopt(argc, argv, "chnvFROM"), c != -1) {
+        while (c = getopt(argc, argv, "hvnctFROM"), c != -1) {
             switch (c) {
             case 'h':
                 help();
                 throw 0;
-            case 'c':
-                contentOnly=true;
-                break;
             case 'v':
                 verbose=true;
                 break;
             case 'n':
                 dryRun=true;
+                break;
+            case 'c':
+                contentOnly=true;
+                break;
+            case 't':
+                keepTree=true;
                 break;
             case 'F':
                 force=true;
@@ -261,7 +278,7 @@ int main(int argc, char* argv[])
         }
         
         for (int i = optind; i < argc; ++i) {
-            if (!isValidForRemoval(argv[i], contentOnly))
+            if (!isValidForRemoval(argv[i], contentOnly||keepTree))
                 ++errcnt;
         }
         if (optind == argc) {
