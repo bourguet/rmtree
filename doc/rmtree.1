@@ -25,16 +25,42 @@ removed.
 .SH OPTIONS
 
 .TP
+\fB\-h\fR
+built in help.
+
+.TP
+\fB\-v\fR
+verbose mode, says what is done.
+
+.TP
+\fB\-n\f
+dry run, don't do anything.
+
+.TP
 \fB\-c\fR
-remove only the content of the specified directories.
+remove only the content of the specified directories but not the
+directories themselves.
 
 .TP
 \fB\-F\fR
-remove write protected files and directories.
+remove write protected files and directories.  Change access rights of
+directories in order to remove their content.
 
 .TP
 \fB\-M\fR
 remove in different file systems.
+
+.TP
+\fB\-R\fR
+force recursion in directories which won't be removed.  Normally 
+.B rmtree
+won't recurse in directories when it is know that they won't be removed
+(for instance write protected without \-F, with another owner without \-O).
+
+.TP
+\fB\-O\fR
+remove also only files and directories which aren't owned by the current
+user.
 
 .SH EXIT STATUS
 
@@ -66,6 +92,10 @@ even if it has to change access rights to achieve its result.
 .B rmtree -c .
 .P
 Remove the content of the current directory, even the hidden files.
+
+.B rmtree -FROM foo
+.P
+Do a best effort to remove foo.
 
 .SH SEE ALSO
 
