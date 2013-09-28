@@ -80,7 +80,7 @@ dist:
 
 install: all $(DESTDIR)$(bindir) $(DESTDIR)$(man1dir)
 	cd src; cp $(PROGS) $(DESTDIR)$(bindir)
-	cd doc; cp $(MANPAGES) $(DESTDIR)$(man1dir)
+	cd doc; cp $(MAN1PAGES) $(DESTDIR)$(man1dir)
 
 $(DESTDIR)$(bindir):
 	@mkdir -p $@
