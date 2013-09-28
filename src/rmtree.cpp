@@ -26,8 +26,12 @@ void help()
         "Remove directories and their content\n"
         "\n"
         "Options:\n"
-        "-f\tforce (change permissions on removed entries, remove read only entries)\n"
-        "-c\tremove only the content, keep the directory\n";
+        "-v\tverbose, say what is done\n"
+        "-n\tdon't do anything, just say what will be done\n"
+        "-c\tremove only the content, keep the directory\n"
+        "-F\tforce (change permissions on removed entries, remove read only entries)\n"
+        "-M\tremove in different file systems\n"
+        ;
 } // help
 
 // ----------------------------------------------------------------------------
@@ -79,7 +83,7 @@ bool isValidForRemoval(std::string const& path, bool contentOnly)
         if (S_ISDIR(buf.st_mode)) {
             std::pair<dev_t, ino_t> cur = std::make_pair(buf.st_dev, buf.st_ino);
             if (cur == cwd) {
-                std::cerr << "Can't remove .\n";
+                std::cerr << "Can't remove the current working directory.\n";
                 return false;
             }
             std::string parent(path+"/..");
@@ -89,7 +93,7 @@ bool isValidForRemoval(std::string const& path, bool contentOnly)
                 return false;
             }
             if (buf.st_dev != cur.first) {
-                std::cerr << "Can't remove " << path << " as it is a mount point\n";
+                std::cerr << "Can't remove " << path << " as it is a mount point.\n";
                 return false;
             }
         }
@@ -107,19 +111,31 @@ int main(int argc, char* argv[])
         int c, errcnt = 0;
         bool force = false;
         bool contentOnly = false;
+        bool traverseMountPoints = false;
+        bool verbose=false;
+        bool dryrun=false;
         
         std::locale::global(std::locale(""));
         
-        while (c = getopt(argc, argv, "fch"), c != -1) {
+        while (c = getopt(argc, argv, "chnvFM"), c != -1) {
             switch (c) {
             case 'h':
                 help();
                 throw 0;
-            case 'f':
-                force=true;
-                break;
             case 'c':
                 contentOnly=true;
+                break;
+            case 'v':
+                verbose=true;
+                break;
+            case 'n':
+                dryrun=true;
+                break;
+            case 'F':
+                force=true;
+                break;
+            case 'M':
+                traverseMountPoints=true;
                 break;
             case '?':
                 ++errcnt;
