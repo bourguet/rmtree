@@ -23,6 +23,7 @@ bool verbose = false;
 bool traverseMountPoints = false;
 bool checkOwner = true;
 bool forceRecurse = false;
+uid_t me;
 
 // ----------------------------------------------------------------------------
 /// unlink(2) wrapper taking dryRun and verbose into account 
@@ -42,7 +43,7 @@ int doUnlink(std::string const& path)
 int doRmdir(std::string const& path)
 {
     if (dryRun || verbose) {
-        std::cout << "Removing " << path << '\n';
+        std::cout << "Removing directory " << path << '\n';
     }
     if (!dryRun) {
         return rmdir(path.c_str());
@@ -72,8 +73,8 @@ void help()
         "-c\tremove only the content, keep the top directories\n"
         "-t\tremove only the content, keep the directory tree\n"
         "-F\tforce (change permissions on removed entries, remove read only entries)\n"
-        "-O\tdon't check ownership\n"
         "-R\trecurse in directories which one know beforehand won't be removed\n"
+        "-O\tdon't check ownership\n"
         "-M\tremove in different file systems\n"
         ;
 } // help
@@ -147,7 +148,8 @@ bool isValidForRemoval(std::string const& path, bool contentOnly)
 
 // ----------------------------------------------------------------------------
 /// remove a directory entry.
-bool removeEntry(std::string const& path, bool contentOnly)
+bool removeEntry(std::string const& path, bool contentOnly,
+                 bool topDir, dev_t parentDevice)
 {
     bool result = true;
     struct stat buf;
@@ -155,42 +157,57 @@ bool removeEntry(std::string const& path, bool contentOnly)
         perror(path.c_str());
         return false;
     }
+    if (!traverseMountPoints && !topDir && buf.st_dev != parentDevice) {
+        std::cerr << "Can't remove " << path << ": is on a different filesystem\n";
+        return false;
+    }
     if (!S_ISDIR(buf.st_mode)) {
-        if (force || S_ISLNK(buf.st_mode) || access(path.c_str(), W_OK) == 0) {
+        if (checkOwner && buf.st_uid != me) {
+            std::cerr << "Can't remove " << path << ": not owner\n";
+            return false;
+        } else if (force || S_ISLNK(buf.st_mode) || access(path.c_str(), W_OK) == 0) {
             if (doUnlink(path.c_str()) != 0) {
                 int error = errno;
-                std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
+                std::cerr << "Can't remove " << path << ": " << strerror(error) << '\n';
                 return false;
             } else {
                 return true;
             }
         } else {
-            if (!force) {
-                perror(path.c_str());
-            }
+            int error = errno;
+            std::cerr << "Can't remove " << path << ": " << strerror(error) << '\n';
             return false;
         }
     } else {
-        if (access(path.c_str(), W_OK|X_OK|R_OK) != 0) {
+        if (checkOwner && buf.st_uid != me) {
+            std::cerr << "Can't remove " << path << ": not owner\n";
+            if (forceRecurse) {
+                result = false;
+            } else {
+                return false;
+            }
+        } else if (access(path.c_str(), W_OK|X_OK|R_OK) != 0) {
             if (!force) {
                 int error = errno;
-                std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
-                return false;
-            } else {
+                std::cerr << "Can't remove " << path << ": " << strerror(error) << '\n';
+                if (forceRecurse)
+                    result = false;
+                else
+                    return false;
+           } else {
                 if (verbose | dryRun) {
                     std::cerr << "Changing rights on " << path.c_str() << '\n';
                 }
                 if (dryRun) {
                     if (access(path.c_str(), X_OK|R_OK) != 0) {
-                        int error = errno;
                         std::cerr << "Lack of access rights prevent listing actions which would be done on "
                                   << path.c_str() << '\n';
+                        return false;
                     }
-                    return false;
                 } else {
                     if (chmod(path.c_str(), S_IRUSR|S_IWUSR|S_IXUSR|buf.st_mode) != 0) {
                         int error = errno;
-                        std::cerr << "Can't change rights on " << path << ":" << strerror(error) << '\n';
+                        std::cerr << "Can't change rights on " << path << ": " << strerror(error) << '\n';
                         if (forceRecurse)
                             result = false;
                         else
@@ -202,18 +219,17 @@ bool removeEntry(std::string const& path, bool contentOnly)
         DIR* dp = opendir(path.c_str());
         if (dp == NULL) {
             int error = errno;
-            std::cerr << "Can't remove " << path << ":" << strerror(error) << '\n';
+            std::cerr << "Can't list the content of " << path << ": " << strerror(error) << '\n';
             return false;
         } else {
             while (struct dirent* ep = readdir(dp)) {
-                if (strcmp(ep->d_name, ".") != 0
-                    && strcmp(ep->d_name, "..") != 0)
+                if (strcmp(ep->d_name, ".") != 0 && strcmp(ep->d_name, "..") != 0)
                 {
-                    result &= removeEntry(path+"/" +ep->d_name, keepTree);
+                    result &= removeEntry(path+"/"+ep->d_name, keepTree, false, buf.st_dev);
                 }
             }
             closedir(dp);
-            if (!contentOnly) {
+            if (!contentOnly && (!checkOwner || buf.st_uid == me)) {
                 if (doRmdir(path.c_str()) != 0) {
                     int error = errno;
                     std::cerr << "Can't remove dir " << path << ": " << strerror(error) << '\n';
@@ -289,10 +305,11 @@ int main(int argc, char* argv[])
         if (errcnt > 0)
             throw 2;
 
+        me = geteuid();
         int notRemoved = 0;
         
         for (int i = optind; i < argc; ++i) {
-            if (!removeEntry(argv[i], contentOnly))
+            if (!removeEntry(argv[i], contentOnly, true, 0))
                 ++notRemoved;
         }
 
