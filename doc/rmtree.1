@@ -1,66 +1,79 @@
-.TH RMTREE 1 "September 21, 2013" "Jean-Marc Bourguet" "Jean-Marc Bourguet's Utilities"
+.TH RMTREE 1 "September 28, 2013" "Jean-Marc Bourguet" "Jean-Marc Bourguet's Utilities"
 
 .SH NAME
-rmtree \- remove directories and their content
+rmtree \- remove directory entries
 
 .SH SYNOPSIS
 .B rmtree
-[\fIOPTION\fR]... \fIDIR\fR...
+[\|\fIOPTIONS\fR...\|] \fIpathnames\fR...
 
 .SH DESCRIPTION
 .B rmtree
-removes each specified directory and their content.  There are two main
+removes the specified directory entries.  For those entries which are
+directories themselves, it removes also their content.  The main
 differences with
 .B rm -fr
-:
+are
 .IP \(bu
 .B rmtree
-is able to add  access right on a directory to do its job; 
+is able to add accesss rights on directories in order to remove their
+content.
 .IP \(bu
 by default
 .B rmtree 
 won't remove the content of a directory on which write access have been
 removed.
+.IP \(bu
+without \-O, 
+.B rmtree
+won't remove files and directories not owned by the current user.
 
 .SH OPTIONS
 
 .TP
-\fB\-h\fR
+.B \-h
 built in help.
 
 .TP
-\fB\-v\fR
+.B \-v
 verbose mode, says what is done.
 
 .TP
-\fB\-n\f
+.B \-n
 dry run, don't do anything.
 
 .TP
-\fB\-c\fR
+.B -c
 remove only the content of the specified directories but not the
-directories themselves.
+directories themselves (if they contain directories, those are removed).
 
 .TP
-\fB\-F\fR
+.B \-t 
+remove only the content, keep the directory tree (no directories are
+removed).
+
+.TP
+.B \-F
 remove write protected files and directories.  Change access rights of
 directories in order to remove their content.
 
 .TP
-\fB\-M\fR
-remove in different file systems.
-
-.TP
-\fB\-R\fR
+.B \-R
 force recursion in directories which won't be removed.  Normally 
 .B rmtree
-won't recurse in directories when it is know that they won't be removed
-(for instance write protected without \-F, with another owner without \-O).
+won't recurse in directories which won't be removed (for instance those
+which are write protected without \-F, with another owner without \-O).
 
 .TP
-\fB\-O\fR
+.B \-O
 remove also only files and directories which aren't owned by the current
 user.
+
+.TP
+.B \-M
+traverse file system.  Without this option
+.B rmtree
+won't recurse into mount point.
 
 .SH EXIT STATUS
 
@@ -74,29 +87,49 @@ some files and directories but not all have been removed
 2
 nothing has been removed
 
-.\" .SH NOTES
-
-.\" .SH BUGS
-
 .SH EXAMPLES
 
-.B rmtree foo
+.SS rmtree foo
 .P
-Remove the directory foo and its content.
+Remove the directory foo and its content. Not writable files and
+directories (and their content) or those owned by another user are not
+removed.
 
-.B rmtree -F foo
+.SS rmtree -c .
 .P
-Remove the directory foo and its content, even the write protected part,
-even if it has to change access rights to achieve its result.
+Remove the content of the current directory. Not writable files and
+directories (and their content) or those owned by another user are not
+removed.
 
-.B rmtree -c .
+.SS rmtree -F foo
 .P
-Remove the content of the current directory, even the hidden files.
+Remove the directory foo and its content, even files and directories which
+are write protected (as long as 
+.B rmtree
+can gain write access to their containing directories).  Files and
+directories (and their content) owned by another user are not removed.
 
-.B rmtree -FROM foo
+.SS rmtree -R foo
 .P
-Do a best effort to remove foo.
+Remove the directory foo and its content. Not writable files and
+directories or those owned by another user are not removed, but
+.B rmtree
+will look into those directories for files and directories it can remove.
+
+.SS rmtree -O foo
+.P
+Remove the directory foo and its content, even those owned by another user.
+Not writable files and directories are not removed.
+
+.SS rmtree -FRO foo
+.P
+Remove the directory foo and its content, even files and directories which
+are write protected (as long as 
+.B rmtree
+can gain write access to their containing directories) and those owned by
+another user.  Will look into the directories it can't remove for files and
+directories which can be removed.
 
 .SH SEE ALSO
-
-rm(1), rmdir(1)
+.BR rm (1), 
+.BR rmdir (1)
