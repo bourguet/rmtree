@@ -1,9 +1,7 @@
 *~
 *.o
 *.d
-src/csv_ljoin
-src/csv_rjoin
-src/csv_ijoin
-src/csv_ojoin
-src/csv_merge
-
+*~
+cmake-*
+\#*\#
+.idea

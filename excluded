@@ -1,4 +1,7 @@
-.git
-.gitignore
-*.d
-excluded
+*~
+#*#
+rmtree/.git
+rmtree/.gitignore
+rmtree/.idea
+rmtree/cmake-*
+rmtree/excluded
